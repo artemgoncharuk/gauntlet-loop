@@ -6,7 +6,7 @@
 
 A skill that turns any goal into one short, paste-ready prompt. That prompt makes your agent pick a real quality bar, split the work into small pieces, run a builder and a separate harsh critic on each one, compare blind against the bar, and keep looping until it wins.
 
-Most agent output stops at "good enough" because nothing is holding it to a standard. This gives it a standard it cannot argue with.
+Most agent output stops at "good enough" because nothing is holding it to a standard. This gives it a standard it cannot argue with - and, when you ask for them, an auditor that checks the loop is not faking its own compliance, a judge kept blind to the implementation, and isolated builders that cannot copy each other.
 
 > The gauntlet loop is [Matt Shumer's](https://github.com/mshumer) idea. He wrote the original prompt and named the technique while building [Claude of Duty](https://github.com/mshumer/Claude-of-Duty). This repo packages that pattern as a reusable skill.
 
@@ -43,7 +43,7 @@ LICENSE           # CC BY 4.0
 
 1. **You give a goal.** Anything. A site, an essay, a CLI tool, a research brief.
 2. **It offers 2 or 3 bars.** Each one is a specific, real thing your agent can actually fetch and compare against. Not "award-winning design", but a named page, a named post, a named repo.
-3. **You pick one.** It writes one short prompt, around 150 words, and stops.
+3. **You pick one.** It also turns on any of the three dials the goal calls for - audit, implementation-blind judging, isolated builders - then writes one short prompt, around 150 words, and stops.
 4. **You paste it into a fresh session.** That agent splits the work, runs builder and critic pairs, and loops.
 
 The critic is the part that matters. It is a separate agent with fresh context, it opens the actual output, it puts your work next to the bar with the labels stripped, and it says which one is better. Not a score out of 10, which drifts upward every round. A pick.
@@ -59,6 +59,16 @@ The skill will not accept a vague bar. It checks three things before it writes a
 - **Named.** A specific thing, not a category.
 - **Fetchable.** The critic can screenshot it, read it, run it, or open it. If the agent cannot get the reference, it hallucinates the comparison and approves everything.
 - **Comparable.** Both can sit side by side and a judge can pick one.
+
+## The three dials
+
+All three are off by default. Every extra instruction is one fewer decision the agent makes with its own judgment, so each has to earn its place. The skill turns one on when the goal calls for it, or asks you.
+
+**The auditor.** An agent that says it fanned out subagents and compared blind is grading its own compliance. So the loop is required to leave a trail on disk - the worktree each builder used, the exact files the critic was handed, the verdict - and a separate auditor checks the trail, not the claims. Anything that cannot be proved by path did not happen: the round is void, it reruns, and the finding goes on the progress page where you can see it.
+
+**Two kinds of blind.** *Authorship-blind* means the judge does not know which candidate is yours; that is the default. *Implementation-blind* means the judge only ever sees the output surface - the rendered page, the finished text, the tool's behaviour - and never the code, file tree or commit history behind it. Otherwise a judge gets impressed by clever code behind a mediocre surface. Say which one you mean, or the agent does one and reports both. The one place it does not fit is a bar that *is* someone's source code - then you judge behaviour and the benchmark, or leave the dial off.
+
+**Isolated builders.** If you want competing solutions rather than one refined answer, the builders have to actually be unable to see each other's work. Telling them not to look is not isolation - they will grep the repo. Each gets its own worktree, starting from the brief and nothing else, and whether they may read the existing implementation is stated up front. The critic then ranks them blind, the winner merges back, the rest are discarded.
 
 ## Examples
 
@@ -79,9 +89,9 @@ Bar becomes a named tool's implementation plus its benchmark, so taste and a num
 
 ## Works with any agent
 
-`/loop` and `ultracode` are Claude Code features. `/loop` reruns a prompt until you stop it, and `ultracode` opts a turn into multi-agent orchestration.
+`/loop`, `ultracode` and worktree isolation are Claude Code features. `/loop` reruns a prompt until you stop it, `ultracode` opts a turn into multi-agent orchestration, and worktree isolation gives each subagent its own checkout.
 
-For any other agent, the skill swaps those two lines for plain instructions: keep looping until the critic picks ours, and run the builders and critics as parallel subagents. The structure is identical.
+For any other agent, the skill swaps those lines for plain instructions: keep looping until the critic picks ours, run the builders and critics as parallel subagents, and isolate them with whatever that runtime has - separate directories, separate clones, or an explicit allowlist of the only files each builder may open. The auditor and both kinds of blind carry over unchanged, because they are about what gets written down and what gets handed to the judge, not about any one runtime.
 
 ## What breaks it
 
@@ -89,6 +99,9 @@ For any other agent, the skill swaps those two lines for plain instructions: kee
 - The builder judging its own work. The critic needs fresh context and no knowledge of how hard the builder tried.
 - A soft critic. Give it a binary job, not a score.
 - A fixed round count. The exit is winning, or you calling it.
+- An auditor that reads claims instead of paths. Asking the orchestrator whether it fanned out is the builder judging itself, one level up.
+- An audit with no teeth. If a failed round does not rerun and does not reach you, it is a log line.
+- Isolation by instruction. "Do not look at the other builder's code" is not isolation. Separate worktrees are - and isolation with no stated merge point leaves you with forks and no answer.
 
 ## Credit
 
